@@ -1,23 +1,41 @@
 from flask import Flask, request, jsonify, session, render_template
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3
 import os
 
 app = Flask(__name__)
 
+# Railway لەپشتی proxy کار دەکات؛ بێ ئەمە Flask بە هەڵە بڕیار دەدات کە داواکارییەکە HTTPS نییە
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
 # SECRET_KEYی جێگیر بۆ کارکردنی session لەسەر هەموو جێگایەک
-app.secret_key = 'your-secret-key-here-change-in-production'  # لە بەرهەمهێناندا بە شێوەیەکی پارێزراو بگۆڕە
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
 
 # ڕێکخستنی session بۆ کارکردن لە نێوان دۆمەینەکاندا
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True  # پێویستە لەسەر HTTPS
 
-# ڕێگەدان بە CORS بۆ دۆمەینی فرانت (وەک خۆت)
-CORS(app, supports_credentials=True, origins=["https://prices-form-production.up.railway.app", "http://localhost:5000", "https://your-frontend-domain.com"])
-
-# DB_PATH دەبێت ئاماژە بکات بۆ فۆڵدەرێکی Volume-ی پارێزراو لە Railway
-# (نەک فۆڵدەری کۆدەکە خۆی، چونکە ئەوە لەگەڵ هەر redeploy-ێک پاک دەکرێتەوە)
+# ==============================================================
+# گرنگ: شوێنی داتابەیس - پێویستە لەسەر Railway Volume بێت
+# ==============================================================
+# بێ Volume، Railway هەر جارێک redeploy یان restart بکات، هەموو
+# فایلەکانی نوێ (لەوانە database.db) دەسڕێتەوە چونکە دیسکەکە
+# سەردەمە (ephemeral). بۆیە:
+# 1. لە Railway dashboard دا Volume زیاد بکە (Settings > Volumes)
+# 2. Mount path بکە بە شێوەی: /data
+# 3. Environment Variable زیاد بکە: DB_PATH=/data/database.db
 DB_PATH = os.environ.get('DB_PATH', 'database.db')
+
+# ڕێگەدان بە CORS بۆ دۆمەینی فرانت
+# گرنگ: ئەگەر فرانت و باکەند لە یەک دۆمەین/Railway app نین،
+# دۆمەینی ڕاستەقینەی فرانتەندەکەت لێرە زیاد بکە (بەجێی placeholder ـەکان)
+ALLOWED_ORIGINS = os.environ.get(
+    'ALLOWED_ORIGINS',
+    'https://prices-form-production.up.railway.app,http://localhost:5000'
+).split(',')
+
+CORS(app, supports_credentials=True, origins=ALLOWED_ORIGINS)
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -80,6 +98,7 @@ def login():
     conn.close()
     if user:
         session['user_id'] = user['id']
+        session.permanent = True
         return jsonify({
             'success': True,
             'seller': {
@@ -109,37 +128,39 @@ def add_products():
 @app.route('/api/admin/login', methods=['POST'])
 def admin_login():
     data = request.json
-    if data['username'] == 'admin' and data['password'] == 'admin123':
+    admin_user = os.environ.get('ADMIN_USERNAME', 'admin')
+    admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    if data['username'] == admin_user and data['password'] == admin_pass:
         session['admin'] = True
+        session.permanent = True
         session.modified = True
         return jsonify({'success': True, 'message': 'بەخێربێی بەڕێوەبەر'})
     return jsonify({'success': False, 'message': 'ناوی بەکارهێنەر یان وشەی تێپەڕ هەڵەیە'})
 
 @app.route('/api/admin/data', methods=['GET'])
 def admin_data():
-    # پشکنینی بوونی admin لە session
     if not session.get('admin'):
         return jsonify({'success': False, 'message': 'دەستپێگەیشتن ڕەتکراوە - تکایە دوبارە بچۆ ژوورەوە وەک بەڕێوەبەر'})
-    
+
     conn = get_db()
     products = conn.execute('''
-        SELECT 
-            p.id, 
-            p.name, 
-            p.category, 
-            p.price, 
-            p.qty, 
-            p.total, 
+        SELECT
+            p.id,
+            p.name,
+            p.category,
+            p.price,
+            p.qty,
+            p.total,
             p.image,
-            s.name as shop_name, 
-            s.phone, 
+            s.name as shop_name,
+            s.phone,
             s.location
-        FROM products p 
+        FROM products p
         JOIN shops s ON p.shop_id = s.id
         ORDER BY p.id DESC
     ''').fetchall()
     conn.close()
-    
+
     result = []
     for row in products:
         result.append({
@@ -154,9 +175,8 @@ def admin_data():
             'phone': row['phone'],
             'location': row['location']
         })
-    
-    # تۆمارکردنی ژمارەی پڕۆداکتەکان لە کۆنسۆڵی سێرڤەر بۆ پشکنین
-    print(f"Admin data: {len(result)} products found.")
+
+    print(f"Admin data: {len(result)} products found. DB_PATH={DB_PATH}")
     return jsonify({
         'success': True,
         'products': result
@@ -185,10 +205,26 @@ def get_session():
             return jsonify({'logged_in': True, 'seller': dict(user)})
     return jsonify({'logged_in': False})
 
+@app.route('/api/debug/dbinfo', methods=['GET'])
+def debug_dbinfo():
+    """کاریگەری کاتی: بۆ پشکنینی شوێن و بارودۆخی داتابەیس لە پرۆدەکشندا.
+    دەتوانیت دوای دڵنیابوونەوە لە چارەسەرکردنی کێشەکە ئەم route ـە بسڕیتەوە."""
+    conn = get_db()
+    shops_count = conn.execute('SELECT COUNT(*) c FROM shops').fetchone()['c']
+    products_count = conn.execute('SELECT COUNT(*) c FROM products').fetchone()['c']
+    conn.close()
+    return jsonify({
+        'db_path': DB_PATH,
+        'db_path_absolute': os.path.abspath(DB_PATH),
+        'db_exists': os.path.exists(DB_PATH),
+        'shops_count': shops_count,
+        'products_count': products_count
+    })
+
 @app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     return jsonify({'success': True})
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
