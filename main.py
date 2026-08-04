@@ -32,9 +32,8 @@ DB_PATH = os.environ.get('DB_PATH', 'database.db')
 # دۆمەینی ڕاستەقینەی فرانتەندەکەت لێرە زیاد بکە (بەجێی placeholder ـەکان)
 ALLOWED_ORIGINS = os.environ.get(
     'ALLOWED_ORIGINS',
-    'https://prices-form-production.up.railway.app,http://localhost:5000'
+    'https://mop-production-30ce.up.railway.app'
 ).split(',')
-
 CORS(app, supports_credentials=True, origins=ALLOWED_ORIGINS)
 
 def get_db():
