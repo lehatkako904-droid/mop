@@ -43,6 +43,11 @@ def get_db():
     return conn
 
 def init_db():
+    # دڵنیابوون لەوەی فۆڵدەری داتابەیسەکە بوونی هەیە (بۆ نموونە ئەگەر /data/database.db بێت)
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+        
     conn = get_db()
     conn.execute('''
         CREATE TABLE IF NOT EXISTS shops (
@@ -68,7 +73,6 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
-
 init_db()
 
 @app.route('/')
