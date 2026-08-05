@@ -501,15 +501,23 @@
         }
 
         // ===== چوونەژوورەوەی فرۆشیار =====
-        async function handleSellerLogin(e) {
-            e.preventDefault();
-            const phone = $('loginPhone').value.trim();
-            const password = $('loginPass').value.trim();
-            if (!phone || !password) {
-                flash('تکایە ژمارە و وشەی تێپەڕ بنووسە', 'error');
-                return;
-            }
+      async function handleSellerLogin(e) {
+    e.preventDefault();
+    const phone = document.getElementById('loginPhone').value.trim();
+    const password = document.getElementById('loginPass').value.trim();
 
+    try {
+        const data = await apicall('/api/login', 'POST', { phone, password });
+        if (data.success) {
+            flash('بە سەرکەوتوویی چوویتە ژوورەوە!', 'success');
+            location.reload(); // بۆ نوێکردنەوەی سێشن و دۆخەکە
+        } else {
+            flash(data.message || 'هەڵە لە چوونەژوورەوەدا', 'error');
+        }
+    } catch (err) {
+        flash('هەڵەیەک لە پەیوەندی بە باکەند هەیە', 'error');
+    }
+}
             const data = await apiCall('/api/login', 'POST', { phone, password });
             if (data.success) {
                 currentSeller = data.seller;
