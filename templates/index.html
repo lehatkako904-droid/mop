@@ -465,17 +465,17 @@
         }
 
         // ===== بانگی API =====
-        async function apiCall(endpoint, method = 'GET', body = null) {
-            const url = API_BASE + endpoint;
-            const opts = {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include'
-            };
-            if (body) opts.body = JSON.stringify(body);
-            const res = await fetch(url, opts);
-            return res.json();
-        }
+       async function apicall(url, method = 'GET', data = null) {
+    // دڵنیا ببە کە لێرەدا http://localhost نەنووسراوە
+    const response = await fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: data ? JSON.stringify(data) : null
+    });
+    return await response.json();
+}
 
         // ===== تۆمارکردنی فرۆشیار =====
         async function handleSellerSignUp(e) {
