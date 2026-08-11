@@ -500,34 +500,32 @@
         }
 
         // ===== چوونەژوورەوەی فرۆشیار =====
-      async function handleSellerLogin(e) {
+async function handleSellerLogin(e) {
     e.preventDefault();
     const phone = document.getElementById('loginPhone').value.trim();
     const password = document.getElementById('loginPass').value.trim();
 
+    if (!phone || !password) {
+        flash('تکایە ژمارە و وشەی تێپەڕ بنووسە', 'error');
+        return;
+    }
+
     try {
         const data = await apicall('/api/login', 'POST', { phone, password });
         if (data.success) {
-            flash('بە سەرکەوتوویی چوویتە ژوورەوە!', 'success');
-            location.reload(); // بۆ نوێکردنەوەی سێشن و دۆخەکە
+            currentSeller = data.seller;
+            isAdmin = false;
+            localStorage.setItem('seller_session', JSON.stringify(currentSeller));
+            updateUI();
+            flash('بەخێربێی ' + currentSeller.name, 'success');
         } else {
-            flash(data.message || 'هەڵە لە چوونەژوورەوەدا', 'error');
+            flash(data.message || 'ژمارە یان وشەی تێپەڕ هەڵەیە', 'error');
         }
     } catch (err) {
+        console.error('Login error:', err);
         flash('هەڵەیەک لە پەیوەندی بە باکەند هەیە', 'error');
     }
 }
-            const data = await apiCall('/api/login', 'POST', { phone, password });
-            if (data.success) {
-                currentSeller = data.seller;
-                isAdmin = false;
-                localStorage.setItem('seller_session', JSON.stringify(currentSeller));
-                updateUI();
-                flash('بەخێربێی ' + currentSeller.name, 'success');
-            } else {
-                flash(data.message || 'ژمارە یان وشەی تێپەڕ هەڵەیە', 'error');
-            }
-        }
 
         // ===== دەرچوون =====
         async function handleLogout() {
