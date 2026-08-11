@@ -465,10 +465,10 @@
         }
 
         // ===== بانگی API =====
-       async function apicall(url, method = 'GET', data = null) {
-    // دڵنیا ببە کە لێرەدا http://localhost نەنووسراوە
-    const response = await fetch(url, {
+     async function apicall(url, method = 'GET', data = null) {
+    const response = await fetch(API_BASE + url, {
         method: method,
+        credentials: 'include',  // ⬅️ گرنگە! بۆ ناردنی cookie
         headers: {
             'Content-Type': 'application/json'
         },
@@ -476,7 +476,6 @@
     });
     return await response.json();
 }
-
         // ===== تۆمارکردنی فرۆشیار =====
         async function handleSellerSignUp(e) {
             e.preventDefault();
